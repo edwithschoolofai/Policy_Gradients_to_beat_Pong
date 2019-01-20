@@ -17,8 +17,8 @@ import gym
 #주로 하나의 에이전트가 미지의 환경과의 상호작용 속에서
 #보상을 최대화하는 과정으로 이해할 수 있습니다
 #2 RL 과 다른 기술을 접목하면 굉장히 강력합니다 (알파고, DQN)
-#정책 경사법 > DQN (DQN 의 저자를 포함한 대부분의 ppl 에서 그렇습니다) https://www.youtube.com/watch?v=M8RfOCYIL8k
-#3 w두 개의 완전연결 신경망 층을 구축합니다
+#정책 경사법 > DQN (DQN 의 저자를 포함한 대부분이 그렇게 생각합니다) https://www.youtube.com/watch?v=M8RfOCYIL8k
+#3 두 개의 완전 연결 신경망 층을 구축합니다
 #https://karpathy.github.io/assets/rl/policy.png
 #이미지 픽셀을 받아서, 위쪽 이동의 확률을 출력합니다 (확률론!)
 
@@ -47,15 +47,15 @@ import gym
 # 하이퍼파라미터
 H = 200 # 은닉층 뉴런의 개수
 batch_size = 10 # 변수 갱신 주기
-learning_rate = 1e-4 #수렴하도록 하기 위함 (너무 느리면- 수렴하는데 시간이 걸린다, 너무 높으면 - 수렴하지 않는다)
+learning_rate = 1e-4 #수렴하도록 하기 위함 (너무 느림 - 수렴하는데 시간이 걸린다, 너무 높음 - 수렴하지 않는다)
 gamma = 0.99 # 보상에 대한 할인률 (i.e 이후의 보상은 훨씬 덜 중요합니다)
-decay_rate = 0.99 # decay factor for RMSProp leaky sum of grad^2
+decay_rate = 0.99 # RMSProp에 대한 감소율
 resume = False # 이전 체크포인트에서 시작합니다
 
 # 모델 초기화
 D = 80 * 80 # 입력 크기: 80x80
 if resume:
-  model = pickle.load(open('save.p', 'rb')) #load from pickled checkpoint
+  model = pickle.load(open('save.p', 'rb')) #저장된 체크포인트에서 로드
 else:
   model = {} #모델을 초기화합니다
   #표준 정규 분포로부터 샘플을 반환합니다
@@ -80,7 +80,7 @@ def sigmoid(x):
 #하나의 게임 프레임을 입력으로 받습니다
 #모델에 적용하기 전 예비과정
 def prepro(I):
-  """ prepro 210x160x3 uint8 frame into 6400 (80x80) 1D float vector """
+  """ 210x160x3 uint8 프레임을 6400 (80x80) 1차원 float 벡터로 전처리 """
   I = I[35:195] # 일부를 잘라냅니다
   I = I[::2,::2,0] # 2 배 만큼 다운샘플합니다
   I[I == 144] = 0 # 배경을 삭제합니다 (배경 타입 1)
@@ -96,7 +96,7 @@ def prepro(I):
 
 #우리는 장기간이 아닌 단기간의 보상을 최적화합니다 (젤다의 전설 같이 말이죠)
 def discount_rewards(r):
-  """ take 1D float array of rewards and compute discounted reward """
+  """ 1차원 float 배열의 보상을 받아 할인된 보상 계산 """
   #할인 보상 행렬을 빈 행렬로 초기화합니다
   discounted_r = np.zeros_like(r)
   #보상의 합을 저장합니다
@@ -130,7 +130,7 @@ def policy_forward(x):
   return p, h # 2 번 동작의 확률과 은닉 상태를 반환합니다
 
 def policy_backward(eph, epdlogp):
-  """ backward pass. (eph is array of intermediate hidden states) """
+  """ 역순 전달. (eph는 중간 과정의 은닉 상태 배열) """
   #두 층의 파생 오류를 재귀적으로 계산하는 것을 연쇄법칙이라 합니다
   #epdlopgp 가 경사를 조절합니다
   #가중치 2 의 갱신된 파생값을 계산합니다. 매개변소는 은닉 상태의 전치행렬 * 경사 입니다 (그리고 ravel() 로 평편화 해줍니다)
