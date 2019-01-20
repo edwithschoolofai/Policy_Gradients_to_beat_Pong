@@ -1,5 +1,5 @@
 """ 퐁에서 정책 경사법을 이용해 에이전트를 훈련하며, OpenAI Gym 을 사용합니다. """
-#행렬
+#행렬 
 import numpy as np 
 #모델을 저장하고 불러오기 위함. 피클링은 파이썬 객체의 계층을 바이트 스트림으로 변환하는 과정입니다.
 import cPickle as pickle 
