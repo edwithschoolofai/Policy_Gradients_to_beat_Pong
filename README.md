@@ -1,4 +1,4 @@
-# Policy Gradients로 퐁 정복하기
+# Policy Gradients로 Pong 정복하기
 Siraj Raval 의 유투브 영상인 "How to Beat Pong Using Policy Gradients (LIVE)" 에 대한 코드입니다.
 
 ## 개요
