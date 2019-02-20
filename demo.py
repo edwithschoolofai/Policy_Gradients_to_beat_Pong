@@ -163,58 +163,59 @@ episode_number = 0
 #학습을 시작합니다!
 while True:
 
-  #관찰을 시작하고 입력을 신경망에 적용해 다른 이미지가 되게 합니다.
-  #Policy 신경망이 움직임을 감지해야 합니다.
+  #observation을 전처리합니다, 입력값을 네트워크에 넣어 이미지 차이를 구합니다
+  #Policy 신경망이 움직임을 감지해야 하기 때문이죠
   #이미지의 차이 = 최종 프레임에 현재값을 뺀 것.
   cur_x = prepro(observation)
   x = cur_x - prev_x if prev_x is not None else np.zeros(D)
   prev_x = cur_x
   #이것이 이미지 차이가 되며, 이것을 적용해줍니다.
 
-  # Policy 네트워크를 실행하고 반환된 확률을 이용해 액션을 취합니다.
+  # Policy 네트워크를 실행하여 얻은 확률을 이용해 액션을 취합니다.
   aprob, h = policy_forward(x)
-  #확률론적인 부분입니다
-  #모델로부터 멀리 떨어져있지 않게 때문에, 모델을 구분할 수 있습니다.
-  #만약 모델로부터 떨어져있다면, 다시 매개변수로 나타냅니다.
+  #확률론적(stochastic) 부분입니다
+  #stochastic 모델의 요소가 아니기 때문에, 이 모델은 미분가능합니다.
+  #만약 stochastic 모델이었다면, reparametrization 트릭을 써야합니다. (참고: variational autoencoders)
   action = 2 if np.random.uniform() < aprob else 3 # 주사위를 굴립니다!
 
-  # 여러 중간값을 기록합니다 (이후 역전파에 사용됩니다).
-  xs.append(x) # 관찰
+  # 여러 도중 값을 저장해둡니다 (이후 역전파에 사용됩니다).
+  xs.append(x) # observation
   hs.append(h) # 은닉 상태
   y = 1 if action == 2 else 0 #"가짜 라벨"
-  dlogps.append(y - aprob) # 이루어져야 할 동작을 수행하는 것 (헷갈린다면 http://cs231n.github.io/neural-networks-2/#losses 를 참고)
+  dlogps.append(y - aprob) # 취해야 할 액션을 취하도록 해주는 기울기 (헷갈린다면 http://cs231n.github.io/neural-networks-2/#losses 를 참고)
 
-  # 환경의 단계와 새로운 값을 가져옵니다.
+  # 환경을 진행시켜 새로운 값을 측정합니다
   env.render()
   observation, reward, done, info = env.step(action)
   reward_sum += reward
 
-  drs.append(reward) # 보상을 기록합니다 (이전 동작에 대해 보상을 얻기 위해 step() 을 호출한 후에 실행해야 합니다).
+  drs.append(reward) # 리워드를 기록합니다 (이전 동작에 대해 리워드를 얻어야 하기 때문에 step() 을 호출한 후 실행합니다).
 
   if done: # 에피소드 종료
     episode_number += 1
 
-    # 이 에피소드의 모든 입력, 은닉 상태, 동작 경사, 그리고 보상을 쌓아놓습니다.
+    # 이 에피소드의 모든 입력, 은닉 상태, 액션의 기울기, 그리고 리워드를 쌓아놓습니다.
     #각 에피소드는 몇 십 번의 게임입니다.
     epx = np.vstack(xs) #관찰
     eph = np.vstack(hs) #은닉
-    epdlogp = np.vstack(dlogps) #경사
-    epr = np.vstack(drs) #보상
+    epdlogp = np.vstack(dlogps) #기울기
+    epr = np.vstack(drs) #리워드
     xs,hs,dlogps,drs = [],[],[],[] # 배열 메모리를 재설정합니다.
 
-    #샘플 동작의 강점은 모든 보상의 가중치에 따른 합입니다. 하지만 이후에는 보상이 훨씬 덜 중요하게 됩니다.
-    # 역방향으로 할인 보상을 계산합니다.
+    #샘플링한 액션을 얼마나 장려할 지는 가중치를 적용한 리워드들의 합으로 결정됩니다. 
+    #하지만 미래에 받을 수록 리워드들은 지수적으로 중요도가 낮아지게 됩니다.
+    # 할인된 리워드를 역방향으로 계산합니다.
     discounted_epr = discount_rewards(epr)
-    # 단위 정규화되도록 보상을 표준화합니다 (경사 추정 분산을 조절하는데 도움을 줍니다).
+    # 정규분포에 따르도록 리워드를 표준화합니다 (기울기 예측값의 분산을 조절하는데 도움을 줍니다).
     discounted_epr -= np.mean(discounted_epr)
     discounted_epr /= np.std(discounted_epr)
 
-    #우위(advantage) - 어떤 동작이 평균적인 동작에 비해 얼마나 좋은지 알려주는 지표.
-    epdlogp *= discounted_epr # 우위(advantage)를 가지고 경사를 조절합니다 (PG 의 마법이 이곳에서 나타납니다).
+    # advantage - 어떤 액션이 평균적인 액션에 비해 얼마나 좋은지 알려주는 지표.
+    epdlogp *= discounted_epr # advantage를 가지고 기울기를 조절합니다 (PG 의 마법은 바로 이곳에서 나타납니다).
     grad = policy_backward(eph, epdlogp)
-    for k in model: grad_buffer[k] += grad[k] # 배치의 경사를 누적시킵니다.
+    for k in model: grad_buffer[k] += grad[k] # 배치의 기울기를 누적시킵니다.
 
-    # 각 batch_size 마다 rmsprop 변수 갱신을 수행합니다.
+    # 각 batch_size 마다 rmsprop 파라메터를 업데이트합니다.
     #http://68.media.tumblr.com/2d50e380d8e943afdfd66554d70a84a1/tumblr_inline_o4gfjnL2xK1toi3ym_500.png
     if episode_number % batch_size == 0:
       for k,v in model.iteritems():
@@ -223,7 +224,7 @@ while True:
         model[k] += learning_rate * g / (np.sqrt(rmsprop_cache[k]) + 1e-5)
         grad_buffer[k] = np.zeros_like(v) # reset batch gradient buffer
 
-    # 지루한 부기
+    # 따분한 book-keeping 작업
     running_reward = reward_sum if running_reward is None else running_reward * 0.99 + reward_sum * 0.01
     print('resetting env. episode reward total was %f. running mean: %f' % (reward_sum, running_reward))
     if episode_number % 100 == 0: pickle.dump(model, open('save.p', 'wb'))
